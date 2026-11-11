@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sophie's Closet</title>
+<style>
+  /* ---- design tokens ---- */
+  :root {
+    --bg-page: #000000;
+    --bg-card-soft: #0e0e10;
+    --bg-input: #1a1a1d;
+    --bg-input-hover: #1f1f23;
+    --border-subtle: #232327;
+    --border-strong: #2e2e34;
+    --text-primary: #f4f4f5;
+    --text-secondary: #c4c4cc;
+    --text-tertiary: #8b8b94;
+    --text-quiet: #6b6b73;
+    --accent: #7db0d9;
+    --accent-hover: #95c3e8;
+    --accent-on: #0d141a;
+    --accent-soft: #212e38;
+    --accent-soft-fg: #b6d5f2;
+    --danger: #a85e5e;
+    /* door palette */
+    --door-top: #31536e;
+    --door-bottom: #7096b0;
+    --door-crest-bg: #151f2c;
+    --door-crest-fg: #e2f0ff;
+    --door-handle: #aac8e0;
+    --launch-card: #0e0e10;
+    --radius-tile: 6px;
+    --radius-input: 8px;
+    --radius-button: 8px;
+    --radius-card: 14px;
+    --gap: 16px;
+    --font-serif: Georgia, 'Times New Roman', serif;
+    --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- top bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 20px;
+    height: 56px; padding: 0 20px;
+    background: var(--bg-page);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .brand {
+    font-family: var(--font-serif); font-size: 22px;
+    letter-spacing: 0.2px; color: var(--accent); white-space: nowrap;
+  }
+  .count { font-size: 12px; color: var(--text-quiet); white-space: nowrap; }
+  .search {
+    margin-left: auto; width: 240px; max-width: 45vw; height: 36px;
+    padding: 0 12px; background: var(--bg-input);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-input);
+    color: var(--text-primary); font-family: var(--font-sans); font-size: 13px; outline: none;
+  }
+  .search::placeholder { color: var(--text-quiet); }
+  .search:focus { border-color: var(--border-strong); }
+  .search:disabled { opacity: .4; }
+
+  /* ---- grid: masonry, but dealt across the row so reading order is
+         left-to-right. Tiles go into column tracks round-robin, and each
+         track packs tight, so heights stay ragged without gaps. ---- */
+  .grid {
+    display: flex; align-items: flex-start; gap: var(--gap);
+    padding: var(--gap); padding-bottom: 140px;
+  }
+  .gcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+
+  .tile {
+    margin: 0; position: relative;
+    border-radius: var(--radius-tile); overflow: hidden;
+    border: 2px solid transparent; cursor: pointer;
+    background: var(--bg-card-soft); line-height: 0;
+    transition: border-color .12s ease;
+  }
+  .tile:hover { border-color: var(--border-strong); }
+  .tile.selected { border-color: var(--accent); }
+  .tile img { width: 100%; height: auto; display: block; }
+  .tile.broken {
+    min-height: 120px; border: 2px dashed var(--border-subtle);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .tile.broken img { display: none; }
+  .tile .broken-label {
+    display: none; font-size: 11px; color: var(--text-quiet);
+    line-height: 1.4; word-break: break-all; text-align: center;
+  }
+  .tile.broken .broken-label { display: block; }
+
+  /* ---- launcher door (shown before a list is loaded) ---- */
+  .loader {
+    min-height: calc(100vh - 40px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .launch-card {
+    width: 300px; max-width: 100%;
+    background: var(--launch-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(0,0,0,.55);
+  }
+  /* the door doubles as the drop target; dropping the list is what opens it */
+  .door {
+    position: relative;
+    height: 360px;
+    background: linear-gradient(var(--door-top), var(--door-bottom));
+    cursor: pointer;
+    transition: filter .15s ease, box-shadow .15s ease;
+  }
+  .door:hover { filter: brightness(1.06); }
+  .door.dragover {
+    filter: brightness(1.12);
+    box-shadow: inset 0 0 0 3px var(--accent);
+  }
+  .door-crest {
+    position: absolute; left: 50%; top: 37%;
+    transform: translate(-50%, -50%);
+    width: 88px; height: 110px;
+    border-radius: 12px;
+    background: var(--door-crest-bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .door-crest span {
+    font-family: var(--font-serif); font-style: italic;
+    font-size: 60px; line-height: 1; color: var(--door-crest-fg);
+  }
+  .door-handle {
+    position: absolute; right: 20px; bottom: 74px;
+    width: 11px; height: 26px; border-radius: 6px;
+    background: var(--door-handle);
+  }
+  .launch-body { padding: 24px 28px; text-align: center; }
+  .launch-title {
+    font-family: var(--font-serif); font-size: 26px;
+    color: var(--text-primary); margin: 0;
+  }
+  .launch-hint { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+  .launch-hint b { color: var(--text-secondary); font-weight: 600; }
+  .door-gate {
+    position: absolute; left: 0; right: 0; bottom: 28px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 0 16px;
+  }
+  .door-gate.hidden { display: none; }
+  .gate-msg { max-width: 80%; margin: 0 auto; font-size: 12px; line-height: 1.4; color: #ffdadd; min-height: 16px; text-align: center; }
+  .gate-msg.fail { color: #ffffff; font-weight: 600; }
+  .gate-row { display: flex; gap: 8px; justify-content: center; }
+  .gate-input {
+    width: 150px; height: 36px; padding: 0 12px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-input); color: var(--text-primary);
+    font-family: var(--font-sans); font-size: 14px; text-align: center; outline: none;
+  }
+  .gate-input:focus { border-color: var(--accent); }
+  .err { color: #f2888d; }
+
+  /* ---- bottom dock ---- */
+  .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: var(--bg-card-soft); border-top: 1px solid var(--border-subtle);
+    padding: 14px 20px;
+    /* Netlify injects a "Powered by Netlify" badge into the bottom-right corner
+       of public projects. It floats above the page and can't be moved, so the
+       dock keeps its buttons clear of that corner instead. */
+    padding-right: 168px; display: flex; align-items: center; gap: 16px;
+    transform: translateY(120%); transition: transform .22s cubic-bezier(.2,.7,.2,1);
+  }
+  .dock.open { transform: translateY(0); }
+  .dock-thumb {
+    width: 56px; height: 56px; flex: 0 0 auto; border-radius: var(--radius-tile);
+    object-fit: cover; background: var(--bg-input); border: 1px solid var(--border-subtle);
+  }
+  .dock-meta { min-width: 0; flex: 0 1 auto; }
+  .dock-name {
+    font-size: 13px; color: var(--text-secondary); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+  }
+  /* the dock filename doubles as the rename field */
+  input.dock-name {
+    width: 14ch; min-width: 6ch; max-width: 260px;   /* JS sizes this to the text */
+    height: 24px; padding: 0 6px; margin: -2px 0 0 -7px;
+    background: transparent; border: 1px solid transparent; border-radius: 6px;
+    font: inherit; font-size: 13px; color: var(--text-secondary); outline: none;
+  }
+  input.dock-name:hover  { border-color: var(--border-subtle); background: var(--bg-input); }
+  input.dock-name:focus  { border-color: var(--accent); background: var(--bg-input); color: var(--text-primary); }
+  /* small, quiet button that lives next to the name rather than with the actions */
+  .dock-namerow { display: flex; align-items: center; gap: 2px; }
+  .btn-mini {
+    flex: 0 0 auto; height: 20px; padding: 0 8px; border-radius: 5px;
+    font-family: var(--font-sans); font-size: 11px; line-height: 1;
+    border: 1px solid transparent; background: transparent;
+    color: var(--text-quiet); cursor: pointer; opacity: 0;
+    transition: opacity .12s ease, color .12s ease, background .12s ease;
+  }
+  .dock.open .btn-mini { opacity: 1; }
+  .btn-mini:hover { color: var(--text-secondary); background: var(--bg-input); border-color: var(--border-subtle); }
+  .btn-mini.active,
+  .btn-mini.active:hover { color: var(--accent-soft-fg); background: var(--accent-soft); border-color: var(--accent-soft); }
+  .dock-sub { font-size: 11px; color: var(--text-quiet); margin-top: 3px; }
+  .dock-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn {
+    height: 36px; padding: 0 16px; border-radius: var(--radius-button);
+    font-family: var(--font-sans); font-size: 13px;
+    border: 1px solid var(--border-subtle); background: var(--bg-input);
+    color: var(--text-secondary); cursor: pointer; white-space: nowrap;
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .btn:hover { background: var(--bg-input-hover); border-color: var(--border-strong); }
+  /* primary + delete are neutral at rest and reveal their color on hover */
+  .btn.primary { background: var(--bg-input); border-color: var(--border-subtle); color: var(--text-secondary); font-weight: 600; }
+  .btn.primary:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+  .btn.soft { background: var(--bg-input); border-color: var(--border-subtle); color: var(--text-secondary); }
+  .btn.soft:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-soft-fg); }
+  .btn.danger { background: var(--bg-input); border-color: var(--border-subtle); color: var(--text-secondary); }
+  .btn.danger:hover { background: var(--danger); border-color: var(--danger); color: #ffe4e4; }
+  .btn.cta { background: var(--accent); border-color: var(--accent); color: var(--accent-on); font-weight: 600; }
+  .btn.cta:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn.ghost { background: transparent; color: var(--text-tertiary); }
+  .btn.ghost:hover { background: var(--bg-input); color: var(--text-secondary); }
+  .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+  #btnEdit { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-soft-fg); font-weight: 600; }
+  #btnEdit:hover { background: var(--accent-soft); border-color: var(--accent-hover); color: #d6e8ff; }
+  #btnEdit.active { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+  .btn.icon { padding: 0; width: 36px; display: inline-flex; align-items: center; justify-content: center; font-size: 17px; }
+  /* dock close: just the mark, in the closet blue */
+  .btn.close-x {
+    background: transparent; border-color: transparent;
+    color: var(--accent); font-size: 22px; line-height: 1; margin-left: 4px;
+  }
+  .btn.close-x:hover {
+    background: var(--accent-soft); border-color: var(--accent-soft);
+    color: var(--accent-soft-fg);
+  }
+  .save-note { font-size: 11px; color: var(--accent-soft-fg); white-space: nowrap; }
+  #btnUpload { display: none; }
+  body.editing #btnUpload { display: inline-block; }
+  #btnMouse { display: none; }
+  body.editing #btnMouse { display: inline-block; }
+  #btnOrder { padding: 0 12px; width: auto; gap: 6px; }
+  #btnOrder .ord { font-size: 12px; }
+  body.vault #tagbar,
+  body.vault #btnMouse,
+  body.vault #btnName { display: none !important; }
+  /* the move arrows only mean anything while the order is your own */
+  #btnMoveUp, #btnMoveDown { display: none; }
+  body.reorder #btnMoveUp,
+  body.reorder #btnMoveDown { display: inline-flex; }
+  #btnMoveUp[disabled], #btnMoveDown[disabled] { opacity: .35; cursor: default; }
+  .chip.chip-hidden { border-style: dashed; }
+  #btnName { display: none; }
+  body.editing #btnName { display: inline-block; }
+  .mo-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-quiet); margin: 14px 0 6px; }
+  .mo-code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px;
+    line-height: 1.5; color: var(--text-secondary); background: var(--bg-input);
+    border: 1px solid var(--border-subtle); border-radius: 8px; padding: 9px 11px;
+    word-break: break-all; }
+  #moModal .up-modal-foot { gap: 8px; }
+  .info-btn { border-radius: 50%; font-family: var(--font-serif); font-style: italic; font-size: 16px; }
+  .guide {
+    position: fixed; top: 62px; right: 16px; z-index: 45;
+    width: 300px; max-width: calc(100vw - 32px);
+    background: var(--launch-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    box-shadow: 0 24px 70px rgba(0,0,0,.55);
+    padding: 16px 18px;
+  }
+  .guide-title {
+    font-family: var(--font-serif); font-size: 18px; color: var(--accent); margin-bottom: 4px;
+  }
+  .guide-row {
+    font-size: 12.5px; color: var(--text-tertiary); line-height: 1.5;
+    padding: 6px 0; border-top: 1px solid var(--border-subtle);
+  }
+  .guide-key { color: var(--text-primary); font-weight: 600; }
+  .guide-tag { color: var(--accent-soft-fg); font-weight: 600; }
+
+  /* ---- toast ---- */
+  .toast {
+    position: fixed; left: 50%; bottom: 108px;
+    transform: translateX(-50%) translateY(8px); z-index: 40;
+    background: var(--accent-soft); color: var(--accent-soft-fg);
+    border: 1px solid var(--accent); padding: 9px 16px; border-radius: var(--radius-button);
+    font-size: 13px; opacity: 0; pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  /* On a narrow screen the badge is smaller and the dock has less room to give,
+     so claw some of the clearance back and let the buttons wrap if they must. */
+  @media (max-width: 720px) {
+    .dock { padding-right: 116px; flex-wrap: wrap; row-gap: 10px; }
+  }
+  /* Set once the badge has actually been hidden. Until then the clearance above
+     stays, so if Netlify ever changes the markup the dock is still usable. */
+  body.no-badge .dock { padding-right: 20px; }
+  @media (max-width: 720px) { body.no-badge .dock { padding-right: 20px; } }
+  .empty { width: 100%; padding: 80px 20px; text-align: center; color: var(--text-quiet); font-size: 14px; }
+  .hidden { display: none !important; }
+
+  /* ---- upload modal ---- */
+  .up-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .up-modal { width: 460px; max-width: 100%; background: var(--launch-card);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-card);
+    box-shadow: 0 24px 70px rgba(0,0,0,.6); padding: 22px; }
+  .up-modal h3 { font-family: var(--font-serif); font-weight: normal; font-size: 20px;
+    color: var(--text-primary); margin: 0 0 6px; }
+  .up-note { font-size: 12px; color: var(--text-tertiary); line-height: 1.5; margin-bottom: 16px; }
+  .up-note b { color: var(--text-secondary); }
+  .up-drop { border: 1.5px dashed var(--border-strong); border-radius: 10px; padding: 22px;
+    text-align: center; color: var(--text-tertiary); font-size: 13px;
+    transition: border-color .12s ease, background .12s ease; }
+  .up-drop.dragover { border-color: var(--accent); background: #140a0b; }
+  .up-urlrow { display: flex; gap: 8px; margin-bottom: 12px; }
+  .up-url { flex: 1; height: 38px; padding: 0 12px; background: var(--bg-input);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-input);
+    color: var(--text-primary); font-family: var(--font-sans); font-size: 13px; outline: none; }
+  .up-url::placeholder { color: var(--text-quiet); }
+  .up-url:focus { border-color: var(--accent); }
+  .up-drop-actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+  .up-results { margin-top: 14px; max-height: 220px; overflow: auto;
+    display: flex; flex-direction: column; gap: 6px; }
+  .up-row { font-size: 12px; color: var(--text-secondary); background: var(--bg-input);
+    border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 10px;
+    display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+  .up-row.pending { color: var(--text-tertiary); }
+  .up-row.err { color: #f2888d; border-color: #5a2327; }
+  .up-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .up-copy { height: 28px; padding: 0 10px; font-size: 12px; flex: 0 0 auto; }
+  .up-codes { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+  .up-modal-foot { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+  /* ---- backup progress ---- */
+  #bkModal .up-modal-foot { gap: 8px; }
+  .bk-bar { height: 6px; border-radius: 999px; background: var(--bg-input);
+            overflow: hidden; margin: 16px 0 10px; }
+  .bk-fill { height: 100%; width: 0; background: var(--accent); transition: width .15s ease; }
+  .bk-stat { font-size: 12px; color: var(--text-tertiary); line-height: 1.5; }
+  .bk-stat b { color: var(--text-secondary); font-weight: 600; }
+
+  /* ---- tag bar (sits under the top bar) ---- */
+  .tagbar {
+    position: sticky; top: 56px; z-index: 19;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; background: var(--bg-page);
+    border-bottom: 1px solid var(--border-subtle); overflow-x: auto;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px;
+    border-radius: 999px; background: var(--bg-input); border: 1px solid var(--border-subtle);
+    color: var(--text-secondary); font-size: 13px; cursor: pointer; white-space: nowrap;
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .chip:hover { background: var(--bg-input-hover); border-color: var(--border-strong); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+  .chip .n { font-size: 11px; color: var(--text-quiet); }
+  .chip.active .n { color: var(--accent-on); opacity: .75; }
+  .chip .x {
+    margin-left: 2px; width: 16px; height: 16px; line-height: 15px; text-align: center;
+    border-radius: 50%; font-size: 13px; color: inherit; opacity: .65;
+  }
+  .chip .x:hover { opacity: 1; background: rgba(0,0,0,.22); }
+  .chip-add { border-style: dashed; color: var(--text-tertiary); }
+  .chip-add:hover { border-color: var(--accent); color: var(--accent-soft-fg); }
+  .tag-input {
+    height: 32px; width: 130px; padding: 0 12px; background: var(--bg-input);
+    border: 1px solid var(--accent); border-radius: 999px; color: var(--text-primary);
+    font-family: var(--font-sans); font-size: 13px; outline: none;
+  }
+
+  /* ---- multi-select pick badge (Edit mode) ---- */
+  .tile .pick {
+    position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.7);
+    display: none; align-items: center; justify-content: center;
+    color: #fff; font-size: 12px; line-height: 1;
+  }
+  body.editing .tile { cursor: pointer; }
+  body.editing .tile .pick { display: flex; }
+  .tile.picked { border-color: var(--accent); }
+  .tile.picked .pick { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+
+  /* ---- add-to-tag popover ---- */
+  .tagmenu {
+    position: absolute; bottom: calc(100% + 8px); right: 20px; min-width: 190px;
+    background: var(--launch-card); border: 1px solid var(--border-subtle);
+    border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.55); padding: 6px; z-index: 60;
+  }
+  .tagmenu .mrow {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer;
+  }
+  .tagmenu .mrow:hover { background: var(--accent); color: var(--accent-on); }
+  .tagmenu .mrow .n { font-size: 11px; color: var(--text-quiet); }
+  .tagmenu .mrow:hover .n { color: var(--accent-on); }
+  .tagmenu .empty-row { padding: 8px 10px; font-size: 12px; color: var(--text-quiet); line-height: 1.4; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body class="">
+  <div class="topbar hidden" id="topbar">
+    <div class="brand">Sophie’s Closet</div>
+    <div class="count" id="count"></div>
+    <input class="search" id="search" type="text" placeholder="Search names and tags…" autocomplete="off" spellcheck="false">
+    <button class="btn icon" id="btnOrder" title="Cycle image order">⇅<span class="ord" id="ordLabel">Custom</span></button>
+    <button class="btn soft" id="btnVault">Stash</button>
+    <button class="btn soft" id="btnTemp">Share</button>
+    <button class="btn soft" id="btnBackup">Backup</button>
+    <button class="btn" id="btnUpload">Upload</button>
+    <button class="btn" id="btnMouse">Mouseover</button>
+    <button class="btn" id="btnName">Name</button>
+    <button class="btn hidden" id="btnDiscard">Discard</button>
+    <button class="btn" id="btnEdit">Edit</button>
+    <span class="save-note" id="saveNote">Stash changed</span>
+    <button class="btn cta" id="btnSave">Save</button>
+    <button class="btn icon info-btn" id="btnInfo" title="What do these do?">i</button>
+  </div>
+
+  <!-- tag bar: click to filter; All is virtual and always shows everything -->
+  <div class="tagbar hidden" id="tagbar"></div>
+
+  <div class="guide hidden" id="guide">
+    <div class="guide-title">Guide</div>
+    <div class="guide-row"><span class="guide-key">Click an image</span>: copy its post code (Upstairs / Underground) or link.</div>
+    <div class="guide-row"><span class="guide-key">Tags</span>: click a tag to filter. <span class="guide-tag">All</span> shows everything except <span class="guide-tag">Hidden</span>.</div>
+    <div class="guide-row"><span class="guide-key">Multi-select</span> <span class="guide-tag">(Edit)</span>: tap images to select, then move, tag, or delete them.</div>
+    <div class="guide-row"><span class="guide-key">+ Tag / ×</span> <span class="guide-tag">(Edit)</span>: add a tag, or delete one with its ×. Images stay under All. <span class="guide-tag">Hidden</span> can’t be deleted.</div>
+    <div class="guide-row"><span class="guide-key">Search</span>: filter by name or tag.</div>
+    <div class="guide-row"><span class="guide-key">⇅</span>: cycle the order: <b>Custom</b> (your own, rearranged with ↑ ↓ in Edit) → <b>Newest</b> → <b>Oldest</b>.</div>
+    <div class="guide-row"><span class="guide-key">↑ ↓</span> <span class="guide-tag">(Edit)</span>: select images, then move them earlier or later. Needs the order on <b>Custom</b>.</div>
+    <div class="guide-row"><span class="guide-key">Rename</span>: click an image, then hit <b>Rename</b> (or just type over the name). Search looks at these.</div>
+    <div class="guide-row"><span class="guide-key">Stash</span>: a second, separate shelf. Its images are kept, but carry no name tag.</div>
+    <div class="guide-row"><span class="guide-key">Hidden</span>: anything in this tag is kept out of <span class="guide-tag">All</span>; open the tag to see it.</div>
+    <div class="guide-row"><span class="guide-key">Share</span>: upload an image for a quick shareable link, without adding it to the closet.</div>
+    <div class="guide-row"><span class="guide-key">Backup</span>: download every image on the shelf you’re on as one zip.</div>
+    <div class="guide-row"><span class="guide-key">Edit</span>: turn on editing to add or remove images.</div>
+    <div class="guide-row"><span class="guide-key">Upload</span> <span class="guide-tag">(Edit)</span>: add images to the shelf you’re on; hit Save to keep them.</div>
+    <div class="guide-row"><span class="guide-key">Mouseover</span> <span class="guide-tag">(Edit)</span>: the hover text carried in both post codes; hit Save to keep it.</div>
+    <div class="guide-row"><span class="guide-key">Name</span> <span class="guide-tag">(Edit)</span>: the name tag under the image in both post codes; hit Save to keep it.</div>
+    <div class="guide-row"><span class="guide-key">Discard</span>: undo unsaved changes.</div>
+    <div class="guide-row"><span class="guide-key">Save</span>: write your changes to the site. They stick, on every device.</div>
+  </div>
+
+  <!-- launcher door, shown until a list is loaded -->
+  <div class="loader" id="loader">
+    <div class="launch-card">
+      <div class="door" id="enterDoor" title="Click the door">
+        <div class="door-crest"><span>S</span></div>
+        <div class="door-handle"></div>
+        <div class="door-gate hidden" id="doorGate">
+          <div class="gate-msg" id="loaderMsg"></div>
+          <div class="gate-row">
+            <input id="doorPass" class="gate-input" type="password" placeholder="Password" autocomplete="off" spellcheck="false">
+            <button class="btn" id="gateBtn">Enter</button>
+          </div>
+        </div>
+      </div>
+      <div class="launch-body">
+        <div class="launch-title">Sophie’s Closet</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid hidden" id="grid"></div>
+
+  <div class="dock" id="dock">
+    <img class="dock-thumb" id="dockThumb" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+    <div class="dock-meta">
+      <div class="dock-namerow">
+        <input class="dock-name" id="dockName" type="text" autocomplete="off" spellcheck="false" title="Rename: this is what Search looks at">
+        <button class="btn-mini" id="btnRename" title="Rename: this is what Search looks at">Rename</button>
+      </div>
+      <div class="dock-sub" id="dockSub">Click a copy button to grab the post code</div>
+    </div>
+    <div class="dock-actions">
+      <button class="btn primary" id="btnUpstairs">Upstairs</button>
+      <button class="btn primary" id="btnUnderground">Underground</button>
+      <button class="btn soft" id="btnLink">Link</button>
+      <button class="btn icon close-x" id="btnClose" title="Close" aria-label="Close">×</button>
+    </div>
+  </div>
+
+  <!-- bulk-action dock, shown in Edit mode when images are selected -->
+  <div class="dock" id="editDock">
+    <div class="dock-meta">
+      <div class="dock-name" id="editCount">0 selected</div>
+      <div class="dock-sub" id="editSub">Move with ↑ ↓, tag, or delete, then Save</div>
+    </div>
+    <div class="dock-actions">
+      <button class="btn icon" id="btnMoveUp" title="Move earlier" disabled="">↑</button>
+      <button class="btn icon" id="btnMoveDown" title="Move later" disabled="">↓</button>
+      <button class="btn ghost" id="btnSelectAll">Select all</button>
+      <button class="btn primary" id="btnAddTag">Add to tag ▾</button>
+      <button class="btn soft" id="btnRemoveTag" style="display: none;">Remove from All</button>
+      <button class="btn danger" id="btnDeletePicks">Delete</button>
+      <button class="btn ghost" id="btnClearPicks">Clear</button>
+    </div>
+    <div class="tagmenu hidden" id="tagMenu"><div class="mrow"><span>Nekkie</span><span class="n">0</span></div></div>
+  </div>
+
+  <!-- upload modal -->
+  <div class="up-overlay hidden" id="upModal">
+    <div class="up-modal">
+      <h3 id="upTitle">Upload to the Stash</h3>
+      <div class="up-note" id="upNote">Kept in the Stash. Hit <b>Save</b> afterward to bake them in.</div>
+      <div class="up-urlrow">
+        <input id="upUrl" class="up-url" type="text" placeholder="Paste an image URL, or Ctrl+V the image itself…" autocomplete="off" spellcheck="false">
+        <button class="btn" id="upUrlBtn">Add</button>
+      </div>
+      <div class="up-drop" id="upDrop">
+        Drag images here, or
+        <div class="up-drop-actions">
+          <button class="btn" id="upFilesBtn">Choose files</button>
+          <button class="btn soft" id="upFolderBtn">Choose folder</button>
+        </div>
+      </div>
+      <div class="up-results" id="upResults"></div>
+      <div class="up-modal-foot">
+        <button class="btn ghost" id="upClose">Close</button>
+      </div>
+    </div>
+  </div>
+  <input type="file" id="upFiles" accept="image/*" multiple="" class="hidden">
+  <input type="file" id="upFolder" accept="image/*" webkitdirectory="" multiple="" class="hidden">
+
+  <!-- mouseover modal: the title= text that rides along in both post codes -->
+  <div class="up-overlay hidden" id="moModal">
+    <div class="up-modal">
+      <h3>Mouseover text</h3>
+      <div class="up-note">The <b>title</b> text that shows when someone hovers the image. Goes into both the Upstairs and Underground codes.</div>
+      <div class="up-urlrow">
+        <input id="moInput" class="up-url" type="text" placeholder="ms. most marvelous" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="mo-label">Upstairs</div>
+      <div class="mo-code" id="moPrevUp"></div>
+      <div class="mo-label">Underground</div>
+      <div class="mo-code" id="moPrevUnder"></div>
+      <div class="up-modal-foot">
+        <button class="btn ghost" id="moReset">Reset to default</button>
+        <button class="btn ghost" id="moClose">Cancel</button>
+        <button class="btn cta" id="moApply">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- name modal: the name tag that sits under the image in both post codes -->
+  <div class="up-overlay hidden" id="nameModal">
+    <div class="up-modal">
+      <h3>Name tag</h3>
+      <div class="up-note">The name that sits under the image in both the Upstairs and Underground codes.</div>
+      <div class="up-urlrow">
+        <input id="nameInput" class="up-url" type="text" placeholder="Sophie" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="mo-label">Upstairs</div>
+      <div class="mo-code" id="namePrevUp"></div>
+      <div class="mo-label">Underground</div>
+      <div class="mo-code" id="namePrevUnder"></div>
+      <div class="up-modal-foot">
+        <button class="btn ghost" id="nameReset">Reset to default</button>
+        <button class="btn ghost" id="nameClose">Cancel</button>
+        <button class="btn cta" id="nameApply">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- backup modal -->
+  <div class="up-overlay hidden" id="bkModal">
+    <div class="up-modal">
+      <h3 id="bkTitle">Backup closet</h3>
+      <div class="up-note">Saves every image on this shelf to one zip on this computer. Nothing on Cloudinary is changed or removed.</div>
+      <div class="bk-bar"><div class="bk-fill" id="bkFill"></div></div>
+      <div class="bk-stat" id="bkStat"></div>
+      <div class="up-results hidden" id="bkResults"></div>
+      <div class="up-modal-foot">
+        <button class="btn" id="bkStart">Start backup</button>
+        <button class="btn ghost" id="bkClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  /* =====================================================================
+     Sophie's post codes.  SNIPPET is replaced with the image URL on copy.
+       - upstairs:    [img title="..." height="380"]url[/img] + white name tag
+     The name tag text is set in the app: Edit mode -> Name.
+       - underground: HTML form of the same av (<font> tags, trailing <br>)
+     The mouseover (title=) text is set in the app: Edit mode -> Mouseover.
+     =====================================================================
+     IMAGE SOURCE: the list is NOT in this file. The function at /api/closet
+     keeps it, behind the password, and hands it over once the door opens.
+     Save writes it straight back there: no downloading, no re-uploading.
+     ===================================================================== */
+  const NAME_DEFAULT = 'Sophie';
+  const NAME_COLOR = '#FFFFFF';
+  const MOUSEOVER_DEFAULT = '';
+
+  // Current name tag. Baked into the file on Save. Edit mode -> Name.
+  let NAME = ""; /* name-literal */
+  let ORIGINAL_NAME = NAME;
+
+  // Current mouseover text. Baked into the file on Save.
+  let MOUSEOVER = ""; /* mouseover-literal */
+  let ORIGINAL_MOUSEOVER = MOUSEOVER;
+
+  // Build the two post codes with the current mouseover baked in.
+  function codes() {
+    const t = String(MOUSEOVER || '').trim();
+    const title = t ? ' title="' + t.replace(/"/g, '&quot;') + '"' : '';
+    return {
+      upstairs:    '[img' + title + ' height="380"]SNIPPET[/img][color ' + NAME_COLOR + ']' + NAME + '[/color]',
+      underground: '<IMG' + title + ' height=380 SRC="SNIPPET"><FONT COLOR=' + NAME_COLOR + '>' + NAME + '<BR></FONT>'
+    };
+  }
+
+  /* Quick-share codes for temp uploads: plain image, no name tag */
+  const SHARE = {
+    upstairs:    url => '[img height="400"]' + url + '[/img]',
+    underground: url => '<IMG height=400 SRC=' + url + '>'
+  };
+
+  /* ---- Cloudinary UNSIGNED upload (NO api key/secret in this file) ----
+     Create *unsigned* upload presets once in your Cloudinary dashboard:
+       Settings -> Upload -> Upload presets -> Add -> Signing Mode: Unsigned
+     One for the closet ('closet') and one for quick shares ('shares') so the
+     two stay in separate folders. cloudName is public; no secret is needed. */
+  const CLOUDINARY = {
+    cloudName:   'fqvox4tn',
+    presetKeep:  'closet',   // Upload: images added to the closet
+    presetShare: 'shares'    // Share: temporary, kept out of the closet folder
+  };
+
+  // ---- baked image list (ORIGINAL = last-saved set, used by Discard) ----
+  let IMAGES = [];
+  let ORIGINAL = IMAGES.slice();
+
+  // ---- the Stash: a second shelf. Uploaded with the 'shares' preset, but kept.
+  //      Kept as VAULT internally so closets saved before the rename still load. ----
+  let VAULT = []; /* vault-literal */
+  let ORIGINAL_VAULT = VAULT.slice();
+
+  // ---- per-image names, keyed by url. Falls back to the filename. ----
+  let LABELS = {}; /* labels-literal */
+  let ORIGINAL_LABELS = JSON.stringify(LABELS);
+
+  // ---- tags: membership keyed by image URL. "All" is virtual (every image). ----
+  let TAGS = {};
+  let ORIGINAL_TAGS = JSON.parse(JSON.stringify(TAGS));
+
+  // ---- elements ----
+  const grid      = document.getElementById('grid');
+  const countEl   = document.getElementById('count');
+  const searchEl  = document.getElementById('search');
+  const dock      = document.getElementById('dock');
+  const dockThumb = document.getElementById('dockThumb');
+  const dockName  = document.getElementById('dockName');
+  const dockSub   = document.getElementById('dockSub');
+  const toastEl   = document.getElementById('toast');
+  const loader    = document.getElementById('loader');
+  const enterDoor = document.getElementById('enterDoor');
+  const doorGate  = document.getElementById('doorGate');
+  const doorPass  = document.getElementById('doorPass');
+  const gateBtn   = document.getElementById('gateBtn');
+  const loaderMsg = document.getElementById('loaderMsg');
+  const btnOrder  = document.getElementById('btnOrder');
+  const ordLabel  = document.getElementById('ordLabel');
+  const btnVault  = document.getElementById('btnVault');
+  const topbar    = document.getElementById('topbar');
+  const saveBtn   = document.getElementById('btnSave');
+  const saveNote  = document.getElementById('saveNote');
+  const btnInfo   = document.getElementById('btnInfo');
+  const guide     = document.getElementById('guide');
+  const editBtn   = document.getElementById('btnEdit');
+  const discardBtn= document.getElementById('btnDiscard');
+  const btnUpload = document.getElementById('btnUpload');
+  const btnTemp   = document.getElementById('btnTemp');
+  const btnMouse  = document.getElementById('btnMouse');
+  const btnName   = document.getElementById('btnName');
+  const nameModal = document.getElementById('nameModal');
+  const nameInput = document.getElementById('nameInput');
+  const namePrevUp    = document.getElementById('namePrevUp');
+  const namePrevUnder = document.getElementById('namePrevUnder');
+  const moModal   = document.getElementById('moModal');
+  const moInput   = document.getElementById('moInput');
+  const moPrevUp  = document.getElementById('moPrevUp');
+  const moPrevUnder = document.getElementById('moPrevUnder');
+  const upModal   = document.getElementById('upModal');
+  const upTitle   = document.getElementById('upTitle');
+  const upNote    = document.getElementById('upNote');
+  const upDrop    = document.getElementById('upDrop');
+  const upResults = document.getElementById('upResults');
+  const upFiles   = document.getElementById('upFiles');
+  const upFolder  = document.getElementById('upFolder');
+  const upUrl     = document.getElementById('upUrl');
+  const tagbar    = document.getElementById('tagbar');
+  const editDock  = document.getElementById('editDock');
+  const editCount = document.getElementById('editCount');
+  const btnSelectAll   = document.getElementById('btnSelectAll');
+  const btnAddTag      = document.getElementById('btnAddTag');
+  const btnRemoveTag   = document.getElementById('btnRemoveTag');
+  const btnDeletePicks = document.getElementById('btnDeletePicks');
+  const btnClearPicks  = document.getElementById('btnClearPicks');
+  const btnMoveUp      = document.getElementById('btnMoveUp');
+  const btnMoveDown    = document.getElementById('btnMoveDown');
+  const editSub        = document.getElementById('editSub');
+  const tagMenu   = document.getElementById('tagMenu');
+
+  // ---- state ----
+  let selectedIndex = -1;
+  let filtered = [];
+  let editing = false;
+  let dirty = false;
+  let sortMode = 'custom';               // custom (yours) | newest | oldest
+  let section  = 'closet';               // closet | vault
+  let gateOpen = false;
+  let activeTag = 'All';                 // current tag filter ("All" = everything)
+  const picks = new Set();               // IMAGES indices chosen in Edit mode
+  /* The password is NOT in this file any more. The function at /api/closet
+     checks it and only hands back the closet once it matches. Change it by
+     setting CLOSET_PASSWORD in Netlify: Site configuration -> Environment
+     variables. Held for this browser tab only, so Save can prove who it is. */
+  const API = '/api/closet';
+  let KEY = '';
+  const FAIL_MSGS = [
+    'Thou shall not pass!',                                  // LOTR
+    'You are not prepared!',                                 // Illidan, WoW
+    'Nerf this. Access denied.',                             // D.Va, Overwatch
+    'Cheers love, wrong password!',                          // Tracer, Overwatch
+    'War never changes. That password does.',                // Fallout
+    'That\u2019s a no from the Overseer.',                   // Fallout
+    'Rebellions are built on hope. Not on that password.',   // Andor
+    'These aren\u2019t the credentials you\u2019re looking for.', // Star Wars
+    'One does not simply guess the password.',               // LOTR / Boromir
+    'You must gather your party before venturing forth.'     // classic Blizzard
+  ];
+
+  // ---- helpers ----
+  function fileNameFromUrl(url) {
+    try {
+      const path = url.split('?')[0].split('#')[0];
+      let last = path.substring(path.lastIndexOf('/') + 1);
+      last = last.replace(/\.[a-z0-9]+$/i, '');
+      return last || url;
+    } catch (e) { return url; }
+  }
+
+  /* the active shelf. Everything that draws or edits the grid goes through these. */
+  function LIST()      { return section === 'vault' ? VAULT : IMAGES; }
+  function setLIST(a)  { if (section === 'vault') VAULT = a; else IMAGES = a; }
+  function inVault()   { return section === 'vault'; }
+
+  /* display name: whatever you typed, else the filename off the url */
+  function nameFor(url) {
+    const l = LABELS[url];
+    return (l && l.trim()) ? l : fileNameFromUrl(url);
+  }
+
+  /* Cloudinary bakes an upload timestamp into the url (/v1786201153/) */
+  function stampOf(url) {
+    const m = /\/v(\d+)\//.exec(url || '');
+    return m ? Number(m[1]) : 0;
+  }
+
+  const HIDDEN_TAG = 'Hidden';
+  function isHidden(url) { return (TAGS[HIDDEN_TAG] || []).includes(url); }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      try {
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? resolve() : reject(new Error('execCommand failed'));
+      } catch (e) { document.body.removeChild(ta); reject(e); }
+    });
+  }
+
+  // ---- boot: show the door; clicking it enters the gallery ----
+  function boot() { showDoor(); }
+
+  function showDoor() {
+    loader.classList.remove('hidden');
+    grid.classList.add('hidden');
+    topbar.classList.add('hidden');
+    gateOpen = false;
+    doorGate.classList.add('hidden');
+    doorPass.value = '';
+    loaderMsg.className = 'gate-msg';
+    loaderMsg.textContent = '';
+  }
+
+  function enterGallery() {
+    seedHidden();
+    document.body.classList.add('reorder');   // Custom order is the default
+    loader.classList.add('hidden');
+    grid.classList.remove('hidden');
+    topbar.classList.remove('hidden');
+    tagbar.classList.remove('hidden');
+    searchEl.disabled = false;
+    renderTagBar();
+    applySearch();
+    renderGrid();
+    updateBars();
+  }
+  function openGate() {
+    if (gateOpen) return;
+    gateOpen = true;
+    doorGate.classList.remove('hidden');
+    loaderMsg.className = 'gate-msg';
+    loaderMsg.textContent = 'Speak, friend, and enter.';   // LOTR, Doors of Durin
+    doorPass.focus();
+  }
+
+  function gateFail(msg) {
+    loaderMsg.className = 'gate-msg fail';
+    loaderMsg.textContent = msg || FAIL_MSGS[Math.floor(Math.random() * FAIL_MSGS.length)];
+    doorPass.value = '';
+    doorPass.focus();
+  }
+
+  /* Drop the server's copy of the closet into the live variables. */
+  function applyState(s) {
+    IMAGES    = Array.isArray(s.images) ? s.images.slice() : [];
+    VAULT     = Array.isArray(s.vault)  ? s.vault.slice()  : [];
+    TAGS      = (s.tags   && typeof s.tags   === 'object') ? JSON.parse(JSON.stringify(s.tags)) : {};
+    LABELS    = (s.labels && typeof s.labels === 'object') ? JSON.parse(JSON.stringify(s.labels)) : {};
+    NAME      = typeof s.name      === 'string' ? s.name      : NAME_DEFAULT;
+    MOUSEOVER = typeof s.mouseover === 'string' ? s.mouseover : MOUSEOVER_DEFAULT;
+    ORIGINAL          = IMAGES.slice();
+    ORIGINAL_VAULT    = VAULT.slice();
+    ORIGINAL_TAGS     = JSON.parse(JSON.stringify(TAGS));
+    ORIGINAL_LABELS   = JSON.stringify(LABELS);
+    ORIGINAL_NAME     = NAME;
+    ORIGINAL_MOUSEOVER = MOUSEOVER;
+    dirty = false;
+  }
+
+  /* The current closet, in the shape the server stores it. */
+  function snapshot() {
+    return { images: IMAGES, vault: VAULT, tags: TAGS, labels: LABELS,
+             name: NAME, mouseover: MOUSEOVER };
+  }
+
+  async function tryPassword() {
+    const typed = doorPass.value.trim();
+    if (!typed) return;
+    gateBtn.disabled = true;
+    loaderMsg.className = 'gate-msg';
+    loaderMsg.textContent = 'Turning the key\u2026';
+    try {
+      const r = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: typed })
+      });
+      if (r.status === 401) { gateFail(); return; }
+      if (!r.ok) { gateFail('The closet did not answer (' + r.status + '). Try again.'); return; }
+      const data = await r.json();
+      KEY = typed;
+      applyState(data.state || {});
+      enterGallery();
+    } catch (err) {
+      gateFail('No route to the closet. Check you are on the deployed site, not the raw file.');
+    } finally {
+      gateBtn.disabled = false;
+    }
+  }
+
+  enterDoor.addEventListener('click', openGate);
+  gateBtn.addEventListener('click', tryPassword);
+  doorPass.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tryPassword(); } });
+
+  // ---- grid ----
+  function updateCount() {
+    const total = LIST().length;
+    const n = filtered.length;
+    const word = inVault() ? ' in the Stash' : ' images';
+    countEl.textContent = (n === total) ? total + word : n + ' of ' + total + (inVault() ? ' in the Stash' : '');
+  }
+
+  /* one source of truth for how many tracks are on screen */
+  function colCount() {
+    const w = window.innerWidth || 1200;
+    if (w <= 560)  return 2;
+    if (w <= 820)  return 3;
+    if (w <= 1100) return 4;
+    return 5;
+  }
+  let lastCols = 0;
+
+  function renderGrid() {
+    grid.innerHTML = '';
+    if (filtered.length === 0) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = LIST().length === 0
+        ? (inVault() ? 'Stash is empty. Hit Edit, then Upload.'
+                     : 'Closet is empty. Hit Edit, then Upload.')
+        : 'Nothing matches that search.';
+      grid.appendChild(e);
+      updateCount();
+      return;
+    }
+    // lay down the tracks, then deal tiles across them: 0,1,2,3,4 / 0,1,2,3,4 ...
+    const nCols = colCount();
+    lastCols = nCols;
+    const cols = [];
+    for (let c = 0; c < nCols; c++) {
+      const col = document.createElement('div');
+      col.className = 'gcol';
+      grid.appendChild(col);
+      cols.push(col);
+    }
+
+    filtered.forEach((item, slot) => {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.dataset.index = item.i;
+      if (!editing && item.i === selectedIndex) tile.classList.add('selected');
+      if (editing && picks.has(item.i)) tile.classList.add('picked');
+
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = item.url;
+      img.alt = item.name;
+      img.addEventListener('error', () => tile.classList.add('broken'));
+
+      const label = document.createElement('div');
+      label.className = 'broken-label';
+      label.textContent = item.name + '  (failed to load)';
+
+      const pick = document.createElement('div');
+      pick.className = 'pick';
+      pick.textContent = '\u2713';
+
+      tile.appendChild(img);
+      tile.appendChild(label);
+      tile.appendChild(pick);
+      tile.addEventListener('click', () => {
+        if (editing) togglePick(item.i, tile);
+        else toggleImage(item.i);
+      });
+
+      cols[slot % nCols].appendChild(tile);
+    });
+    updateCount();
+  }
+
+  function toggleImage(index) {
+    if (editing) return;                 // Edit mode uses multi-select instead
+    if (index === selectedIndex) { closeDock(); return; }
+    selectImage(index);
+  }
+
+  /* keep the field just wide enough for the name, so Rename sits right beside it */
+  function sizeDockName() {
+    const n = Math.max(6, Math.min(30, (dockName.value || '').length));
+    dockName.style.width = (n + 2) + 'ch';
+  }
+
+  function selectImage(index) {
+    selectedIndex = index;
+    document.querySelectorAll('.tile').forEach(t =>
+      t.classList.toggle('selected', Number(t.dataset.index) === index));
+    const url = LIST()[index];
+    dockThumb.src = url;
+    dockName.value = nameFor(url);
+    dockName.dataset.url = url;
+    sizeDockName();
+    dockSub.textContent = inVault()
+      ? 'Stash codes carry no name tag'
+      : 'Click a copy button to grab the post code';
+    dock.classList.add('open');
+  }
+
+  function closeDock() {
+    selectedIndex = -1;
+    document.querySelectorAll('.tile.selected').forEach(t => t.classList.remove('selected'));
+    dock.classList.remove('open');
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+  }
+
+  function copyForSelected(template, label) {
+    if (selectedIndex < 0) return;
+    const out = template.split('SNIPPET').join(LIST()[selectedIndex]);
+    copyText(out).then(
+      () => toast(label + ' code copied'),
+      () => toast('Copy failed. Select the text manually'));
+  }
+
+  // ---- edit mode ----
+  function addedCount()   { return IMAGES.filter(u => !ORIGINAL.includes(u)).length; }
+  function removedCount() { return ORIGINAL.filter(u => !IMAGES.includes(u)).length; }
+  function vaultChanged() {
+    return VAULT.length !== ORIGINAL_VAULT.length
+        || VAULT.some((u, i) => ORIGINAL_VAULT[i] !== u);
+  }
+  function orderChanged() {
+    return IMAGES.length === ORIGINAL.length
+        && IMAGES.some((u, i) => ORIGINAL[i] !== u)
+        && IMAGES.every(u => ORIGINAL.includes(u));
+  }
+  function labelsChanged() { return JSON.stringify(LABELS) !== ORIGINAL_LABELS; }
+
+  function updateBars() {
+    const added = addedCount(), removed = removedCount();
+    saveBtn.textContent = 'Save';
+    saveBtn.classList.toggle('hidden', !dirty);
+    const parts = [];
+    if (added)   parts.push(added + ' added');
+    if (removed) parts.push(removed + ' deleted');
+    if (MOUSEOVER !== ORIGINAL_MOUSEOVER) parts.push('mouseover changed');
+    if (NAME !== ORIGINAL_NAME) parts.push('name changed');
+    if (orderChanged())  parts.push('reordered');
+    if (labelsChanged()) parts.push('renamed');
+    if (vaultChanged())  parts.push('Stash changed');
+    saveNote.textContent = parts.join(' \u00b7 ');
+    saveNote.classList.toggle('hidden', !(dirty && parts.length));
+    discardBtn.classList.toggle('hidden', !(editing && dirty));
+    editBtn.textContent = editing ? 'Done' : 'Edit';
+    editBtn.classList.toggle('active', editing);
+  }
+
+  function switchSection(next) {
+    if (section === next) return;
+    section = next;
+    document.body.classList.toggle('vault', inVault());
+    btnVault.classList.toggle('active', inVault());
+    btnVault.textContent = inVault() ? 'Closet' : 'Stash';
+    activeTag = 'All';
+    closeDock(); clearPicks(); closeTagMenu();
+    renderTagBar(); applySearch(); renderGrid(); updateBars();
+    toast(inVault() ? 'Welcome to the Stash!' : 'Back to the Closet!');
+  }
+
+  function toggleEdit() {
+    editing = !editing;
+    document.body.classList.toggle('editing', editing);
+    closeDock();          // single-select dock is for viewing, not editing
+    clearPicks();         // start each edit session with nothing selected
+    closeTagMenu();
+    renderTagBar();       // show/hide the per-tag delete (×)
+    renderGrid();         // show/hide the pick badges
+    updateBars();
+  }
+
+
+  function discardChanges() {
+    IMAGES = ORIGINAL.slice();
+    VAULT = ORIGINAL_VAULT.slice();
+    LABELS = JSON.parse(ORIGINAL_LABELS);
+    TAGS = JSON.parse(JSON.stringify(ORIGINAL_TAGS));
+    seedHidden();
+    MOUSEOVER = ORIGINAL_MOUSEOVER;
+    NAME = ORIGINAL_NAME;
+    closeMouseover();
+    closeName();
+    if (activeTag !== 'All' && !TAGS[activeTag]) activeTag = 'All';
+    dirty = false;
+    closeDock();
+    clearPicks();
+    closeTagMenu();
+    renderTagBar();
+    applySearch();
+    renderGrid();
+    updateBars();
+    toast('Changes discarded');
+  }
+
+  /* Save = write the closet back to the site, so the change is there on every
+     device and survives a refresh. If that fails for any reason the old
+     bake-a-copy-and-download path runs instead, so nothing is ever lost. */
+  async function saveToServer() {
+    if (!dirty) return;
+    saveBtn.disabled = true;
+    const wasLabel = saveBtn.textContent;
+    saveBtn.textContent = 'Saving\u2026';
+    try {
+      const r = await fetch(API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: KEY, state: snapshot() })
+      });
+      if (r.status === 401) {
+        toast('The closet stopped recognising you. Reload and unlock again.');
+        return;
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      ORIGINAL = IMAGES.slice();
+      ORIGINAL_TAGS = JSON.parse(JSON.stringify(TAGS));
+      ORIGINAL_MOUSEOVER = MOUSEOVER;
+      ORIGINAL_NAME = NAME;
+      ORIGINAL_VAULT = VAULT.slice();
+      ORIGINAL_LABELS = JSON.stringify(LABELS);
+      dirty = false;
+      updateBars();
+      toast('Saved to the closet');
+    } catch (err) {
+      toast('Could not reach the closet, so a copy is downloading instead');
+      exportSelf();
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = wasLabel;
+    }
+  }
+
+  // Fallback only: bake the current closet into a standalone copy of this page
+  // and download it. Runs when a save to the site fails.
+  function exportSelf() {
+    // reset transient UI so the saved copy opens fresh at the door
+    const snap = {
+      grid: grid.className, topbar: topbar.className, loader: loader.className,
+      body: document.body.className, dockOpen: dock.classList.contains('open'),
+      modal: upModal.className, results: upResults.innerHTML,
+      gate: doorGate.className, msgCls: loaderMsg.className, msgTxt: loaderMsg.textContent,
+      guide: guide.className, tagbar: tagbar.className,
+      editDockOpen: editDock.classList.contains('open')
+    };
+    grid.innerHTML = '';
+    tagbar.innerHTML = '';
+    grid.classList.add('hidden');
+    tagbar.classList.add('hidden');
+    topbar.classList.add('hidden');
+    loader.classList.remove('hidden');
+    document.body.classList.remove('editing', 'vault', 'reorder');
+    dock.classList.remove('open');
+    upModal.classList.add('hidden');
+    upResults.innerHTML = '';
+    moModal.classList.add('hidden');
+    moPrevUp.textContent = '';
+    moPrevUnder.textContent = '';
+    nameModal.classList.add('hidden');
+    namePrevUp.textContent = '';
+    namePrevUnder.textContent = '';
+    doorGate.classList.add('hidden');
+    loaderMsg.className = 'gate-msg';
+    loaderMsg.textContent = '';
+    guide.classList.add('hidden');
+    editDock.classList.remove('open');
+    tagMenu.classList.add('hidden');
+    // a toast still on screen would otherwise be frozen into the copy and greet
+    // you on the front door every time you opened it
+    const toastCls = toastEl.className, toastTxt = toastEl.textContent;
+    toastEl.className = 'toast';
+    toastEl.textContent = '';
+
+    let out = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+    toastEl.className = toastCls; toastEl.textContent = toastTxt;
+
+    // restore the live view
+    grid.className = snap.grid; topbar.className = snap.topbar;
+    loader.className = snap.loader; document.body.className = snap.body;
+    upModal.className = snap.modal; upResults.innerHTML = snap.results;
+    doorGate.className = snap.gate; loaderMsg.className = snap.msgCls; loaderMsg.textContent = snap.msgTxt;
+    guide.className = snap.guide; tagbar.className = snap.tagbar;
+    if (snap.dockOpen) dock.classList.add('open');
+    if (snap.editDockOpen) editDock.classList.add('open');
+    // draw the grid and tag bar fresh; putting the old markup back would
+    // restore the tiles without their click handlers
+    renderTagBar(); applySearch(); renderGrid();
+
+    // bake the CURRENT list into the copy
+    const literal = 'let IMAGES = ' + JSON.stringify(IMAGES) + ';\n  let ORIGINAL = IMAGES.slice();';
+    out = out.replace(/let IMAGES = \[[\s\S]*?\];\s*let ORIGINAL = IMAGES\.slice\(\);/, literal);
+    const tagsLiteral = 'let TAGS = ' + JSON.stringify(TAGS) + ';\n  let ORIGINAL_TAGS = JSON.parse(JSON.stringify(TAGS));';
+    out = out.replace(/let TAGS = \{[\s\S]*?\};\s*let ORIGINAL_TAGS = JSON\.parse\(JSON\.stringify\(TAGS\)\);/, tagsLiteral);
+
+    const moLiteral = 'let MOUSEOVER = ' + JSON.stringify(MOUSEOVER) + '; /* mouseover-literal */';
+    out = out.replace(/let MOUSEOVER = [\s\S]*?; \/\* mouseover-literal \*\//, () => moLiteral);
+
+    const nameLiteral = 'let NAME = ' + JSON.stringify(NAME) + '; /* name-literal */';
+    out = out.replace(/let NAME = [\s\S]*?; \/\* name-literal \*\//, () => nameLiteral);
+
+    const vaultLiteral = 'let VAULT = ' + JSON.stringify(VAULT) + '; /* vault-literal */';
+    out = out.replace(/let VAULT = [\s\S]*?; \/\* vault-literal \*\//, () => vaultLiteral);
+
+    const labelsLiteral = 'let LABELS = ' + JSON.stringify(LABELS) + '; /* labels-literal */';
+    out = out.replace(/let LABELS = [\s\S]*?; \/\* labels-literal \*\//, () => labelsLiteral);
+
+    const blob = new Blob([out], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const stamp = (() => {
+      const d = new Date();
+      const mmm = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+      return String(d.getDate()).padStart(2, '0') + ' ' + mmm + ' ' + String(d.getFullYear()).slice(-2);
+    })();
+    const fname = 'sophies-closet-' + stamp + '.html';
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast('Saved ' + fname + ' to Downloads');
+  }
+
+  // ---- uploads (unsigned Cloudinary) ----
+  let uploadMode = 'keep';
+
+  function openUpload(mode) {
+    uploadMode = mode;
+    upTitle.textContent = mode === 'keep' ? 'Upload to closet'
+                        : (mode === 'vault' ? 'Upload to the Stash' : 'Share');
+    upNote.innerHTML = mode === 'keep'
+      ? 'Added to the list. Hit <b>Save</b> afterward to bake them into the file.'
+      : (mode === 'vault'
+        ? 'Kept in the Stash. Hit <b>Save</b> afterward to bake them in.'
+        : 'These are <b>not</b> saved to the closet. You just get shareable links.');
+    upResults.innerHTML = '';
+    upModal.classList.remove('hidden');
+  }
+  function closeUpload() { upModal.classList.add('hidden'); }
+
+  function addResult(text, cls) {
+    const row = document.createElement('div');
+    row.className = 'up-row' + (cls ? ' ' + cls : '');
+    row.textContent = text;
+    upResults.appendChild(row);
+    upResults.scrollTop = upResults.scrollHeight;
+    return row;
+  }
+
+  // src can be a File OR a remote image URL (Cloudinary fetches the URL)
+  /* Some hosts (Pinterest, Instagram and friends) refuse Cloudinary's server and
+     answer 403. Pulling the image down in the browser first, then sending the
+     bytes up, gets around it, as long as the host allows cross-origin reads. */
+  async function fetchAsFile(url, name) {
+    const r = await fetch(url, { mode: 'cors', cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    if (!/^image\//.test(blob.type || '')) throw new Error('that URL is not an image');
+    return new File([blob], name || 'image', { type: blob.type });
+  }
+
+  function hotlinkBlocked(msg) {
+    return /error in loading|403|401|forbidden|unauthorized/i.test(String(msg || ''));
+  }
+
+  function uploadOne(src, keep) {
+    const fd = new FormData();
+    fd.append('file', src);
+    fd.append('upload_preset', keep ? CLOUDINARY.presetKeep : CLOUDINARY.presetShare);
+    return fetch('https://api.cloudinary.com/v1_1/' + CLOUDINARY.cloudName + '/image/upload',
+                 { method: 'POST', body: fd })
+      .then(r => r.json().catch(() => ({})).then(d => ({ ok: r.ok, status: r.status, d })))
+      .then(({ ok, status, d }) => {
+        if (!ok || !d.secure_url) {
+          // Cloudinary puts the real reason in d.error.message (e.g. preset issues)
+          throw new Error((d && d.error && d.error.message) ? d.error.message : ('HTTP ' + status));
+        }
+        let url = d.secure_url;
+        // chat sites choke on webp -> serve it as a lossy gif instead
+        if (d.format === 'webp') url = url.replace('/upload/', '/upload/f_gif,fl_lossy/');
+        return url;
+      });
+  }
+
+  function presetReady() {
+    const p = uploadMode === 'keep' ? CLOUDINARY.presetKeep : CLOUDINARY.presetShare;
+    if (!p || p === 'YOUR_UNSIGNED_PRESET') {
+      addResult('Set an unsigned upload preset in the code first (CLOUDINARY).', 'err');
+      return false;
+    }
+    return true;
+  }
+
+  // items: array of { src: File|urlString, name }
+  async function processItems(items) {
+    if (!items.length) { toast('Nothing to upload'); return; }
+    if (!presetReady()) return;
+    const keep = uploadMode === 'keep' || uploadMode === 'vault';
+    let ok = 0;
+    for (const it of items) {
+      const row = addResult(it.name + ': uploading\u2026', 'pending');
+      try {
+        const toCloset = keep && uploadMode !== 'vault';
+        let url;
+        try {
+          url = await uploadOne(it.src, toCloset);
+        } catch (err) {
+          // blocked at the source? try again with the browser doing the fetching
+          if (typeof it.src === 'string' && hotlinkBlocked(err && err.message)) {
+            row.textContent = it.name + ': blocked there, retrying through your browser\u2026';
+            const file = await fetchAsFile(it.src, it.name);
+            url = await uploadOne(file, toCloset);
+          } else {
+            throw err;
+          }
+        }
+        ok++;
+        if (uploadMode === 'vault') {
+          VAULT.unshift(url);                 // newest lands first in your own order
+          dirty = true;
+        } else if (keep) {
+          IMAGES.unshift(url);                // newest lands first in your own order
+          if (activeTag !== 'All' && activeTag !== HIDDEN_TAG) {
+            (TAGS[activeTag] = TAGS[activeTag] || []).unshift(url);
+          }
+          dirty = true;
+        }
+        row.className = 'up-row';
+        row.innerHTML = '';
+        const name = document.createElement('span');
+        name.className = 'up-name';
+        name.textContent = it.name + (keep ? '  \u2713 added' : '');
+        row.appendChild(name);
+        const mkBtn = (label, text, msg) => {
+          const b = document.createElement('button');
+          b.className = 'btn soft up-copy';
+          b.textContent = label;
+          b.addEventListener('click', () =>
+            copyText(text).then(() => toast(msg), () => toast('Copy failed')));
+          return b;
+        };
+        if (keep) {
+          row.appendChild(mkBtn('Copy link', url, 'Link copied'));
+        } else {
+          const codes = document.createElement('div');
+          codes.className = 'up-codes';
+          codes.appendChild(mkBtn('Copy', url, 'Link copied'));
+          codes.appendChild(mkBtn('Upstairs', SHARE.upstairs(url), 'Upstairs code copied'));
+          codes.appendChild(mkBtn('Underground', SHARE.underground(url), 'Underground code copied'));
+          row.appendChild(codes);
+        }
+      } catch (e) {
+        row.className = 'up-row err';
+        let msg = (e && e.message) || 'failed';
+        if (typeof it.src === 'string' && (hotlinkBlocked(msg) || msg === 'Failed to fetch')) {
+          msg = 'that site won\u2019t hand the image over. Right-click it, Copy image, then Ctrl+V here';
+        } else if (msg === 'Failed to fetch') {
+          msg = 'blocked. If opened by double-click, run from a local server';
+        }
+        row.textContent = it.name + ': ' + msg;
+      }
+    }
+    if (keep && ok) {
+      applySearch(); renderGrid(); renderTagBar(); updateBars();
+      toast(ok + ' uploaded. Save to bake ' + (ok === 1 ? 'it' : 'them') + ' in');
+    } else if (!keep && ok) {
+      toast(ok + ' uploaded, links ready');
+    }
+  }
+
+  function handleFiles(fileList) {
+    const items = Array.from(fileList)
+      .filter(f => f.type.startsWith('image/'))
+      .map(f => ({ src: f, name: f.name }));
+    if (!items.length) { toast('No image files selected'); return; }
+    processItems(items);
+  }
+
+  function handleUrl(raw) {
+    const url = (raw || '').trim();
+    if (!/^https?:\/\//i.test(url)) { toast('Enter an image URL'); return; }
+    const name = (url.split('/').pop() || 'image').split('?')[0] || 'image';
+    processItems([{ src: url, name }]);
+  }
+
+  // ---- mouseover editor ----
+  function renderMoPreview() {
+    const saved = MOUSEOVER;
+    MOUSEOVER = moInput.value;           // preview against what's typed
+    const c = codes();
+    MOUSEOVER = saved;
+    moPrevUp.textContent    = c.upstairs.split('SNIPPET').join('…image url…');
+    moPrevUnder.textContent = c.underground.split('SNIPPET').join('…image url…');
+  }
+
+  function openMouseover() {
+    moInput.value = MOUSEOVER;
+    renderMoPreview();
+    moModal.classList.remove('hidden');
+    moInput.focus();
+    moInput.select();
+  }
+
+  function closeMouseover() { moModal.classList.add('hidden'); }
+
+  function applyMouseover() {
+    // strip anything that could break the baked literal or the tags
+    const next = moInput.value.replace(/[<>]/g, '').split('*/').join('').trim();
+    if (next === MOUSEOVER) { closeMouseover(); return; }
+    MOUSEOVER = next;
+    dirty = true;
+    updateBars();
+    closeMouseover();
+    toast(next ? 'Mouseover set to “' + next + '”. Save to keep it'
+               : 'Mouseover cleared. Save to keep it');
+  }
+
+  // ---- name editor ----
+  function renderNamePreview() {
+    const saved = NAME;
+    NAME = nameInput.value;              // preview against what's typed
+    const c = codes();
+    NAME = saved;
+    namePrevUp.textContent    = c.upstairs.split('SNIPPET').join('\u2026image url\u2026');
+    namePrevUnder.textContent = c.underground.split('SNIPPET').join('\u2026image url\u2026');
+  }
+
+  function openName() {
+    nameInput.value = NAME;
+    renderNamePreview();
+    nameModal.classList.remove('hidden');
+    nameInput.focus();
+    nameInput.select();
+  }
+
+  function closeName() { nameModal.classList.add('hidden'); }
+
+  function applyName() {
+    // strip anything that could break the baked literal or the post codes
+    const next = nameInput.value.replace(/[<>\[\]]/g, '').split('*/').join('').trim();
+    if (next === NAME) { closeName(); return; }
+    NAME = next;
+    dirty = true;
+    updateBars();
+    closeName();
+    toast(next ? 'Name set to \u201c' + next + '\u201d. Save to keep it'
+               : 'Name cleared. Save to keep it');
+  }
+
+  // ---- wiring ----
+  document.getElementById('btnUpstairs').addEventListener('click',
+    () => copyForSelected(inVault() ? SHARE.upstairs('SNIPPET') : codes().upstairs, 'Upstairs'));
+  document.getElementById('btnLink').addEventListener('click', () => {
+    if (selectedIndex < 0) return;
+    copyText(LIST()[selectedIndex]).then(
+      () => toast('Link copied'),
+      () => toast('Copy failed. Select the text manually'));
+  });
+  document.getElementById('btnUnderground').addEventListener('click',
+    () => copyForSelected(inVault() ? SHARE.underground('SNIPPET') : codes().underground, 'Underground'));
+  document.getElementById('btnClose').addEventListener('click', closeDock);
+  editBtn.addEventListener('click', toggleEdit);
+  discardBtn.addEventListener('click', discardChanges);
+  saveBtn.addEventListener('click', saveToServer);
+  btnUpload.addEventListener('click', () => openUpload(inVault() ? 'vault' : 'keep'));
+  btnTemp.addEventListener('click', () => openUpload('temp'));
+  btnMouse.addEventListener('click', openMouseover);
+  moInput.addEventListener('input', renderMoPreview);
+  moInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); applyMouseover(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeMouseover(); }
+  });
+  document.getElementById('moApply').addEventListener('click', applyMouseover);
+  document.getElementById('moClose').addEventListener('click', closeMouseover);
+  document.getElementById('moReset').addEventListener('click', () => {
+    moInput.value = MOUSEOVER_DEFAULT;
+    renderMoPreview();
+    moInput.focus();
+  });
+  moModal.addEventListener('click', e => { if (e.target === moModal) closeMouseover(); });
+  window.addEventListener('resize', () => {
+    if (colCount() !== lastCols && !grid.classList.contains('hidden')) renderGrid();
+  });
+  btnOrder.addEventListener('click', cycleOrder);
+  btnMoveUp.addEventListener('click', () => nudgePicks(-1));
+  btnMoveDown.addEventListener('click', () => nudgePicks(1));
+  btnVault.addEventListener('click', () => switchSection(inVault() ? 'closet' : 'vault'));
+
+  // rename: type over the name in the dock, it lands on blur or Enter
+  document.getElementById('btnRename').addEventListener('click', () => {
+    if (selectedIndex < 0) return;
+    dockName.focus();
+    dockName.select();
+  });
+  dockName.addEventListener('focus', () =>
+    document.getElementById('btnRename').classList.add('active'));
+  dockName.addEventListener('input', sizeDockName);
+
+  dockName.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); dockName.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); dockName.value = nameFor(dockName.dataset.url || ''); sizeDockName(); dockName.blur(); }
+  });
+  dockName.addEventListener('blur', () => {
+    document.getElementById('btnRename').classList.remove('active');
+    const url = dockName.dataset.url;
+    if (!url) return;
+    const next = dockName.value.replace(/[<>]/g, '').split('*/').join('').trim();
+    const now  = (LABELS[url] || '').trim();
+    if (next === now || (next === '' && !now)) { dockName.value = nameFor(url); sizeDockName(); return; }
+    if (next === '' || next === fileNameFromUrl(url)) delete LABELS[url];
+    else LABELS[url] = next;
+    dirty = true;
+    dockName.value = nameFor(url);
+    sizeDockName();
+    applySearch(); renderGrid(); updateBars();
+    toast(next ? 'Renamed to \u201c' + nameFor(url) + '\u201d. Save to keep it'
+               : 'Name cleared, back to the filename');
+  });
+
+  // a Save is a download, so warn before the tab closes on unsaved work
+  window.addEventListener('beforeunload', e => {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  });
+  btnName.addEventListener('click', openName);
+  nameInput.addEventListener('input', renderNamePreview);
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); applyName(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeName(); }
+  });
+  document.getElementById('nameApply').addEventListener('click', applyName);
+  document.getElementById('nameClose').addEventListener('click', closeName);
+  document.getElementById('nameReset').addEventListener('click', () => {
+    nameInput.value = NAME_DEFAULT;
+    renderNamePreview();
+    nameInput.focus();
+  });
+  nameModal.addEventListener('click', e => { if (e.target === nameModal) closeName(); });
+  document.getElementById('upFilesBtn').addEventListener('click', () => upFiles.click());
+  document.getElementById('upFolderBtn').addEventListener('click', () => upFolder.click());
+  upFiles.addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+  upFolder.addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+  document.getElementById('upClose').addEventListener('click', closeUpload);
+  upModal.addEventListener('click', e => { if (e.target === upModal) closeUpload(); });
+  ['dragenter','dragover'].forEach(ev => upDrop.addEventListener(ev, e => { e.preventDefault(); upDrop.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev => upDrop.addEventListener(ev, e => { e.preventDefault(); upDrop.classList.remove('dragover'); }));
+  upDrop.addEventListener('drop', e => { if (e.dataTransfer.files) handleFiles(e.dataTransfer.files); });
+  document.getElementById('upUrlBtn').addEventListener('click', () => { handleUrl(upUrl.value); upUrl.value = ''; });
+  upUrl.addEventListener('keydown', e => { if (e.key === 'Enter') { handleUrl(upUrl.value); upUrl.value = ''; } });
+  document.addEventListener('paste', e => {
+    if (upModal.classList.contains('hidden')) return;
+    const items = e.clipboardData && e.clipboardData.items;
+    if (items) {
+      for (const it of items) {
+        if (it.type.startsWith('image/')) {
+          const f = it.getAsFile();
+          if (f) { processItems([{ src: f, name: f.name || 'pasted-image.png' }]); return; }
+        }
+      }
+    }
+    const text = e.clipboardData ? e.clipboardData.getData('text') : '';
+    if (text && /^https?:\/\//i.test(text.trim())) upUrl.value = text.trim();
+  });
+
+  function applySearch() {
+    const q = searchEl.value.trim().toLowerCase();
+
+    // the Stash has no tags of its own; in the closet, All leaves out Hidden
+    const inTag = url => inVault() ? true
+      : (activeTag === 'All' ? !isHidden(url) : (TAGS[activeTag] || []).includes(url));
+
+    // search looks at the name AND the tags an image sits under
+    const tagsOf = url => inVault() ? []
+      : Object.keys(TAGS).filter(t => (TAGS[t] || []).includes(url));
+    const hit = item => q === ''
+      || item.name.toLowerCase().includes(q)
+      || tagsOf(item.url).some(t => t.toLowerCase().includes(q));
+
+    filtered = LIST()
+      .map((url, i) => ({ url, i, name: nameFor(url) }))
+      .filter(item => inTag(item.url))
+      .filter(hit);
+
+    if (sortMode === 'newest') filtered.sort((a, b) => stampOf(b.url) - stampOf(a.url) || a.i - b.i);
+    if (sortMode === 'oldest') filtered.sort((a, b) => stampOf(a.url) - stampOf(b.url) || a.i - b.i);
+  }
+
+  function cycleOrder() {
+    sortMode = sortMode === 'custom' ? 'newest' : (sortMode === 'newest' ? 'oldest' : 'custom');
+    ordLabel.textContent = sortMode === 'custom' ? 'Custom'
+                        : (sortMode === 'newest' ? 'Newest' : 'Oldest');
+    btnOrder.classList.toggle('active', sortMode !== 'custom');
+    document.body.classList.toggle('reorder', sortMode === 'custom');
+    closeDock(); clearPicks();
+    applySearch(); renderGrid();
+    toast(sortMode === 'custom' ? 'Your own order. Move things with \u2191 \u2193 in Edit'
+        : (sortMode === 'newest' ? 'Newest first' : 'Oldest first'));
+  }
+
+  /* Nudge everything selected one step earlier (-1) or later (+1).
+     The step is one VISIBLE place, so it behaves the same under a tag
+     filter or a search as it does under All. A selected run moves as a
+     block, and stops once it reaches the end. */
+  function nudgePicks(dir) {
+    if (!picks.size || sortMode !== 'custom') return;
+
+    const chosen = new Set(pickedUrls());
+    const vis = filtered.map(f => f.url);            // what's on screen, in order
+    const sel = new Set(vis.filter(u => chosen.has(u)));
+    if (!sel.size) return;
+
+    const seq = vis.slice();
+    const spots = seq.map((u, i) => i).filter(i => sel.has(seq[i]));
+    if (dir > 0) spots.reverse();                    // going down, start at the back
+
+    let moved = 0;
+    for (const i of spots) {
+      const j = i + dir;
+      if (j < 0 || j >= seq.length) continue;        // already at the edge
+      if (sel.has(seq[j])) continue;                 // neighbour is selected too
+      const t = seq[i]; seq[i] = seq[j]; seq[j] = t;
+      moved++;
+    }
+    if (!moved) {
+      toast(dir < 0 ? 'Already at the front' : 'Already at the end');
+      return;
+    }
+
+    // write the new on-screen order back, leaving anything filtered out where it is
+    const arr = LIST().slice();
+    const onScreen = new Set(vis);
+    const slots = [];
+    arr.forEach((u, i) => { if (onScreen.has(u)) slots.push(i); });
+    slots.forEach((slot, k) => { arr[slot] = seq[k]; });
+    setLIST(arr);
+
+    dirty = true;
+    picks.clear();                                   // picks are position-based
+    LIST().forEach((u, i) => { if (chosen.has(u)) picks.add(i); });
+    applySearch(); renderGrid(); updateBars(); updateEditDock();
+  }
+
+  searchEl.addEventListener('input', () => {
+    applySearch();
+    if (selectedIndex >= 0 && !filtered.some(it => it.i === selectedIndex)) closeDock();
+    renderGrid();
+  });
+
+  btnInfo.addEventListener('click', () => guide.classList.toggle('hidden'));
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDock(); guide.classList.add('hidden'); } });
+
+  document.addEventListener('click', e => {
+    if (!guide.classList.contains('hidden') && !e.target.closest('#guide') && !e.target.closest('#btnInfo')) {
+      guide.classList.add('hidden');
+    }
+    if (!dock.classList.contains('open')) return;
+    if (e.target.closest('.tile') || e.target.closest('.dock') || e.target.closest('.up-overlay')) return;
+    closeDock();
+  });
+
+  /* ---- Backup: fetch every closet image and zip it locally ---------------
+     Read-only. Nothing is deleted from Cloudinary, nothing is re-uploaded. */
+  const btnBackup = document.getElementById('btnBackup');
+  const bkModal   = document.getElementById('bkModal');
+  const bkFill    = document.getElementById('bkFill');
+  const bkStat    = document.getElementById('bkStat');
+  const bkResults = document.getElementById('bkResults');
+  const bkStart   = document.getElementById('bkStart');
+  const bkClose   = document.getElementById('bkClose');
+  let bkRunning = false;
+
+  const bkFillTo = pct => { bkFill.style.width = Math.max(0, Math.min(100, pct)) + '%'; };
+
+  // filename from the URL tail, sanitised, with collisions numbered
+  function bkNameFor(url, used) {
+    let base = (url.split('/').pop() || 'image').split('?')[0] || 'image';
+    base = base.replace(/[\\/:*?"<>|]/g, '_');
+    if (!/\.[a-z0-9]{2,5}$/i.test(base)) base += '.png';
+    let name = base, n = 2;
+    while (used.has(name.toLowerCase())) {
+      name = base.replace(/(\.[^.]+)$/, '-' + n + '$1');
+      n++;
+    }
+    used.add(name.toLowerCase());
+    return name;
+  }
+
+  function openBackup() {
+    if (!bkRunning) {
+      bkResults.innerHTML = '';
+      bkResults.classList.add('hidden');
+      bkFillTo(0);
+      bkStat.textContent = LIST().length
+        ? LIST().length + (LIST().length === 1 ? ' image' : ' images') + (inVault() ? ' in the Stash.' : ' in the closet.')
+        : (inVault() ? 'Stash is empty, nothing to back up.' : 'Closet is empty, nothing to back up.');
+      bkStart.disabled = !LIST().length;
+    }
+    document.getElementById('bkTitle').textContent = inVault() ? 'Backup the Stash' : 'Backup closet';
+    bkModal.classList.remove('hidden');
+  }
+
+  async function runBackup() {
+    if (bkRunning || !LIST().length) return;
+    if (typeof JSZip === 'undefined') {
+      bkStat.textContent = 'The zip library did not load. Check your connection, then reopen this file.';
+      return;
+    }
+    bkRunning = true;
+    bkStart.disabled = true;
+    bkResults.innerHTML = '';
+    bkResults.classList.add('hidden');
+
+    const zip = new JSZip();
+    const used = new Set();
+    const failed = [];
+    let done = 0;
+
+    const shelf = LIST().slice();
+    for (const url of shelf) {
+      bkStat.innerHTML = 'Fetching <b>' + (done + 1) + '</b> of <b>' + shelf.length + '</b>';
+      try {
+        const r = await fetch(url, { mode: 'cors', cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        zip.file(bkNameFor(url, used), await r.blob());
+      } catch (err) {
+        failed.push(url);
+      }
+      done++;
+      bkFillTo((done / shelf.length) * 90);
+    }
+
+    // a plain URL list travels with the images, so the closet can be rebuilt
+    zip.file((inVault() ? 'stash-urls.txt' : 'closet-urls.txt'), shelf.join('\n') + '\n');
+    if (failed.length) zip.file('FAILED.txt', failed.join('\n') + '\n');
+
+    bkStat.textContent = 'Building the zip\u2026';
+    const blob = await zip.generateAsync(
+      { type: 'blob', compression: 'STORE' },   // images are already compressed
+      m => bkFillTo(90 + m.percent / 10)
+    );
+
+    const d = new Date();
+    const mmm = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    const stamp = String(d.getDate()).padStart(2, '0') + ' ' + mmm + ' ' + String(d.getFullYear()).slice(-2);
+    const fname = 'sophies-' + (inVault() ? 'stash' : 'closet') + '-backup-' + stamp + '.zip';
+
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(href), 5000);
+
+    bkFillTo(100);
+    const okCount = shelf.length - failed.length;
+    bkStat.innerHTML = '<b>' + okCount + '</b> of <b>' + shelf.length + '</b> saved to ' + fname;
+
+    if (failed.length) {
+      bkResults.classList.remove('hidden');
+      const head = document.createElement('div');
+      head.className = 'up-row err';
+      head.textContent = failed.length + ' could not be fetched. They are listed in FAILED.txt inside the zip.';
+      bkResults.appendChild(head);
+      failed.forEach(u => {
+        const row = document.createElement('div');
+        row.className = 'up-row';
+        row.textContent = u;
+        bkResults.appendChild(row);
+      });
+    }
+
+    toast('Backup saved: ' + okCount + ' images');
+    bkRunning = false;
+    bkStart.disabled = false;
+  }
+
+  btnBackup.addEventListener('click', openBackup);
+  bkStart.addEventListener('click', runBackup);
+  bkClose.addEventListener('click', () => bkModal.classList.add('hidden'));
+  bkModal.addEventListener('click', e => { if (e.target === bkModal) bkModal.classList.add('hidden'); });
+
+  /* ===================================================================
+     Tags + multi-select. "All" is virtual (every image); custom tags are
+     membership lists keyed by URL. Nothing here touches Cloudinary; tags
+     live in this file and bake in on Save, revertible with Discard.
+     =================================================================== */
+
+  function renderTagBar() {
+    tagbar.innerHTML = '';
+    ['All', ...Object.keys(TAGS)].forEach(name => {
+      const chip = document.createElement('div');
+      chip.className = 'chip' + (name === activeTag ? ' active' : '');
+
+      const label = document.createElement('span');
+      label.textContent = name;
+      chip.appendChild(label);
+
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = (name === 'All')
+        ? IMAGES.filter(u => !isHidden(u)).length      // All leaves Hidden out
+        : (TAGS[name] || []).filter(u => IMAGES.includes(u)).length;
+      if (name === HIDDEN_TAG) chip.classList.add('chip-hidden');
+      chip.appendChild(n);
+
+      chip.addEventListener('click', () => switchTag(name));
+
+      if (editing && name !== 'All' && name !== HIDDEN_TAG) {   // Hidden is permanent
+        const x = document.createElement('span');
+        x.className = 'x';
+        x.textContent = '\u00d7';
+        x.title = 'Delete this tag';
+        x.addEventListener('click', e => { e.stopPropagation(); deleteTag(name); });
+        chip.appendChild(x);
+      }
+      tagbar.appendChild(chip);
+    });
+
+    const add = document.createElement('div');
+    add.className = 'chip chip-add';
+    add.textContent = '+ Tag';
+    add.addEventListener('click', () => openTagInput(add));
+    tagbar.appendChild(add);
+  }
+
+  function openTagInput(addChip) {
+    const input = document.createElement('input');
+    input.className = 'tag-input';
+    input.placeholder = 'Tag name';
+    input.maxLength = 24;
+    addChip.replaceWith(input);
+    input.focus();
+    let done = false;
+    const finish = save => {
+      if (done) return; done = true;
+      const v = input.value.trim();
+      if (save && v) createTag(v); else renderTagBar();
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+  }
+
+  function switchTag(name) {
+    activeTag = name;
+    clearPicks();
+    closeDock();
+    closeTagMenu();
+    renderTagBar();
+    applySearch();
+    renderGrid();
+  }
+
+  function seedHidden() { if (!Array.isArray(TAGS[HIDDEN_TAG])) TAGS[HIDDEN_TAG] = []; }
+
+  function createTag(name) {
+    name = (name || '').trim();
+    if (!name) return;
+    if (name.toLowerCase() === 'all') { toast('\u201cAll\u201d is reserved'); return; }
+    if (Object.keys(TAGS).some(t => t.toLowerCase() === name.toLowerCase())) {
+      toast('That tag already exists'); renderTagBar(); return;
+    }
+    TAGS[name] = [];
+    dirty = true;
+    activeTag = name;
+    renderTagBar(); applySearch(); renderGrid(); updateBars();
+    toast('Created ' + name + '. Save when you\u2019re done');
+  }
+
+  function deleteTag(tag) {
+    if (tag === 'All' || !TAGS[tag]) return;
+    delete TAGS[tag];
+    if (activeTag === tag) activeTag = 'All';
+    dirty = true;
+    clearPicks();
+    renderTagBar(); applySearch(); renderGrid(); updateBars();
+    toast('Deleted tag ' + tag + '. Images kept under All');
+  }
+
+  // ---- multi-select ----
+  function togglePick(index, tileEl) {
+    if (picks.has(index)) { picks.delete(index); tileEl.classList.remove('picked'); }
+    else { picks.add(index); tileEl.classList.add('picked'); }
+    updateEditDock();
+  }
+
+  function clearPicks() {
+    picks.clear();
+    document.querySelectorAll('.tile.picked').forEach(t => t.classList.remove('picked'));
+    updateEditDock();
+  }
+
+  function toggleSelectAll() {
+    const allPicked = filtered.length > 0 && filtered.every(it => picks.has(it.i));
+    picks.clear();
+    if (!allPicked) filtered.forEach(it => picks.add(it.i));
+    renderGrid();
+    updateEditDock();
+  }
+
+  function updateEditDock() {
+    const has = editing && picks.size > 0;
+    editDock.classList.toggle('open', has);
+    if (!has) closeTagMenu();
+    editCount.textContent = picks.size + ' selected';
+    btnRemoveTag.style.display = (activeTag === 'All') ? 'none' : 'inline-block';
+    btnRemoveTag.textContent = 'Remove from ' + activeTag;
+    const allPicked = filtered.length > 0 && filtered.every(it => picks.has(it.i));
+    btnSelectAll.textContent = allPicked ? 'Select none' : 'Select all';
+
+    // grey the arrows out when the selection is already jammed against an end
+    const vis = filtered.map(f => f.url);
+    const chosen = new Set(pickedUrls());
+    const first = vis.findIndex(u => chosen.has(u));
+    let last = -1; vis.forEach((u, i) => { if (chosen.has(u)) last = i; });
+    const run = vis.filter(u => chosen.has(u)).length;
+    btnMoveUp.disabled   = !(run > 0) || first === 0;
+    btnMoveDown.disabled = !(run > 0) || last === vis.length - 1;
+    editSub.textContent = sortMode === 'custom'
+      ? 'Move with \u2191 \u2193, tag, or delete, then Save'
+      : 'Switch the order to Custom to move things. Tag or delete here';
+  }
+
+  function pickedUrls() { return [...picks].map(i => LIST()[i]); }
+
+  function addPicksToTag(tag) {
+    if (!picks.size) return;
+    const chosen = pickedUrls();
+    const arr = TAGS[tag] || (TAGS[tag] = []);
+    chosen.forEach(u => { if (!arr.includes(u)) arr.push(u); });
+    TAGS[tag] = IMAGES.filter(u => arr.includes(u)); // keep global order, drop stale
+    dirty = true;
+    closeTagMenu();
+    // things sent to Hidden drop straight out of the All view
+    if (tag === HIDDEN_TAG && activeTag === 'All') clearPicks();
+    renderTagBar(); applySearch(); renderGrid(); updateBars(); updateEditDock();
+    toast('Added ' + chosen.length + ' to ' + tag +
+          (tag === HIDDEN_TAG ? ', now out of All' : ''));
+  }
+
+  function removePicksFromActive() {
+    if (activeTag === 'All' || !picks.size) return;
+    const chosen = new Set(pickedUrls());
+    TAGS[activeTag] = (TAGS[activeTag] || []).filter(u => !chosen.has(u));
+    dirty = true;
+    clearPicks(); applySearch(); renderGrid(); renderTagBar(); updateBars();
+    toast('Removed ' + chosen.size + ' from ' + activeTag);
+  }
+
+  function deletePicks() {
+    if (!picks.size) return;
+    const chosen = new Set(pickedUrls());
+    setLIST(LIST().filter(u => !chosen.has(u)));
+    if (!inVault()) Object.keys(TAGS).forEach(t => { TAGS[t] = TAGS[t].filter(u => !chosen.has(u)); });
+    chosen.forEach(u => { delete LABELS[u]; });
+    dirty = true;
+    clearPicks(); closeDock();
+    applySearch(); renderGrid(); renderTagBar(); updateBars();
+    toast('Deleted ' + chosen.size + '. Save when you\u2019re done');
+  }
+
+  // ---- add-to-tag popover ----
+  function openTagMenu() {
+    const custom = Object.keys(TAGS);
+    tagMenu.innerHTML = '';
+    if (custom.length === 0) {
+      const e = document.createElement('div');
+      e.className = 'empty-row';
+      e.textContent = 'No tags yet. Add one with + Tag.';
+      tagMenu.appendChild(e);
+    } else {
+      custom.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'mrow';
+        const l = document.createElement('span'); l.textContent = t; row.appendChild(l);
+        const n = document.createElement('span'); n.className = 'n'; n.textContent = (TAGS[t] || []).length; row.appendChild(n);
+        row.addEventListener('click', () => addPicksToTag(t));
+        tagMenu.appendChild(row);
+      });
+    }
+    tagMenu.classList.remove('hidden');
+  }
+  function closeTagMenu() { tagMenu.classList.add('hidden'); }
+
+  // ---- edit-dock wiring ----
+  btnSelectAll.addEventListener('click', toggleSelectAll);
+  btnClearPicks.addEventListener('click', clearPicks);
+  btnDeletePicks.addEventListener('click', deletePicks);
+  btnRemoveTag.addEventListener('click', removePicksFromActive);
+  btnAddTag.addEventListener('click', e => {
+    e.stopPropagation();
+    tagMenu.classList.contains('hidden') ? openTagMenu() : closeTagMenu();
+  });
+  document.addEventListener('click', e => {
+    if (!tagMenu.classList.contains('hidden') &&
+        !e.target.closest('#tagMenu') && !e.target.closest('#btnAddTag')) {
+      closeTagMenu();
+    }
+  });
+
+  boot();
+</script>
+
+
+<script>
+/* Netlify injects its "Powered by Netlify" badge inside an iframe appended to
+   the page, so its own classes are unreachable from here; the iframe element
+   is what gets hidden. This app creates no iframes of its own, so anything
+   top-level is Netlify's. The observer catches it whenever it is injected,
+   which may be after this script runs. */
+(function () {
+  var hidAny = false;
+  function sweep() {
+    var frames = document.querySelectorAll('body > iframe, body > div > iframe');
+    for (var i = 0; i < frames.length; i++) {
+      var f = frames[i];
+      if (f.dataset.closetHidden) continue;
+      f.dataset.closetHidden = '1';
+      f.style.setProperty('display', 'none', 'important');
+      hidAny = true;
+    }
+    if (hidAny) document.body.classList.add('no-badge');
+  }
+  sweep();
+  new MutationObserver(sweep).observe(document.documentElement,
+                                      { childList: true, subtree: true });
+  // the badge sometimes lands late; stop watching once the page has settled
+  setTimeout(sweep, 1500);
+})();
+</script>
+</body></html>
