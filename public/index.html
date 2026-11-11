@@ -640,19 +640,19 @@
   /* ---- Cloudinary UNSIGNED upload (NO api key/secret in this file) ----
      Create *unsigned* upload presets once in your Cloudinary dashboard:
        Settings -> Upload -> Upload presets -> Add -> Signing Mode: Unsigned
-     One for the closet ('closet') and one for quick shares ('shares') so the
-     two stay in separate folders. cloudName is public; no secret is needed. */
+     One for the closet ('sophiecloset') and one for quick shares ('sophieshares')
+     so the two stay in separate folders. cloudName is public; no secret is needed. */
   const CLOUDINARY = {
-    cloudName:   'fqvox4tn',
-    presetKeep:  'closet',   // Upload: images added to the closet
-    presetShare: 'shares'    // Share: temporary, kept out of the closet folder
+    cloudName:   'dqmtjtppa',
+    presetKeep:  'sophiecloset',   // Upload: images added to the closet
+    presetShare: 'sophieshares'    // Share: temporary, kept out of the closet folder
   };
 
   // ---- baked image list (ORIGINAL = last-saved set, used by Discard) ----
   let IMAGES = [];
   let ORIGINAL = IMAGES.slice();
 
-  // ---- the Stash: a second shelf. Uploaded with the 'shares' preset, but kept.
+  // ---- the Stash: a second shelf. Uploaded with the 'sophieshares' preset, but kept.
   //      Kept as VAULT internally so closets saved before the rename still load. ----
   let VAULT = []; /* vault-literal */
   let ORIGINAL_VAULT = VAULT.slice();
