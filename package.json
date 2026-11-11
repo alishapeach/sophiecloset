@@ -1,0 +1,9 @@
+{
+  "name": "sophie-closet-site",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sophie's closet behind a one-door wardrobe, stored in Netlify Blobs.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
