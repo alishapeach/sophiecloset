@@ -62,8 +62,8 @@ The name tag is set in the app (Edit, then Name) and starts as `Sophie`. The
 mouseover is set with Edit, then Mouseover.
 
 ```
-Upstairs     [img title="..." height="380"]URL[/img][color #FFFFFF]Sophie[/color]
-Underground  <IMG title="..." height=380 SRC="URL"><FONT COLOR=#FFFFFF>Sophie<BR></FONT>
+Upstairs     [img title="..." height="380"]URL[/img][color #7DB0D9]Sophie[/color]
+Underground  <IMG title="..." height=380 SRC="URL"><FONT COLOR=#7DB0D9>Sophie<BR></FONT>
 Stash/Share  [img height="400"]URL[/img]   and   <IMG height=400 SRC=URL>
 ```
 

@@ -792,13 +792,14 @@
       title:     'Sophie’s Closet',      // tab title, top bar, door label
       fileSlug:  'sophie',               // start of every downloaded filename
       mouseover: '',                     // hover text, set in the app
-      /* Her post codes, as her old closet made them: height 380, white name tag.
+      /* Her post codes, as her old closet made them (height 380), with the name
+         tag in the closet's sky blue (#7DB0D9) instead of the old white.
          n is the name tag, t the mouseover for Upstairs, q the same text for
          Underground, quoted the way her old closet quoted it.
          SRC= and its quote are split only so file checkers don't take the code for a
          link; the copied code is unchanged. */
-      upstairs:    (n, t) => '[img' + (t ? ' title="' + t + '"' : '') + ' height="380"]SNIPPET[/img][color #FFFFFF]' + n + '[/color]',
-      underground: (n, ug, q) => '<IMG' + (q ? ' title="' + q + '"' : '') + ' height=380 SRC=' + '"SNIPPET"><FONT COLOR=#FFFFFF>' + n + '<BR></FONT>',
+      upstairs:    (n, t) => '[img' + (t ? ' title="' + t + '"' : '') + ' height="380"]SNIPPET[/img][color #7DB0D9]' + n + '[/color]',
+      underground: (n, ug, q) => '<IMG' + (q ? ' title="' + q + '"' : '') + ' height=380 SRC=' + '"SNIPPET"><FONT COLOR=#7DB0D9>' + n + '<BR></FONT>',
       icon:      crestIcon('#151f2c', '#e2f0ff', 'S'),
       cloudinary: {
         cloudName:   'dqmtjtppa',   // her Cloudinary account (SOPHIE_CLOUDINARY in Netlify overrides it)
